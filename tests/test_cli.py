@@ -11,21 +11,25 @@ def test_show_config_command_prints_effective_config(
 ) -> None:
     monkeypatch.setattr(
         "ragas_qa_dataset.cli.load_settings",
-        lambda _: Settings(openai_api_key="sk-test"),
+        lambda _: Settings(
+            azure_openai_api_key="azure-key",
+            azure_openai_endpoint="https://example.openai.azure.com/",
+        ),
     )
 
     exit_code = main(["show-config"])
 
     out = capsys.readouterr().out
     assert exit_code == 0
-    assert '"openai_api_key": "sk-test"' in out
+    assert '"azure_openai_api_key": "azure-key"' in out
 
 
 def test_validate_command_detects_invalid_file_types(monkeypatch, capsys, tmp_path: Path) -> None:
     invalid_settings = Settings(
         input_dir=tmp_path,
         file_types=("txt", "xlsx"),
-        openai_api_key="sk-test",
+        azure_openai_api_key="azure-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
     )
     monkeypatch.setattr("ragas_qa_dataset.cli.load_settings", lambda _: invalid_settings)
 
@@ -41,7 +45,8 @@ def test_validate_command_detects_invalid_output_formats(monkeypatch, capsys, tm
         input_dir=tmp_path,
         file_types=("txt",),
         output_formats=("jsonl", "xlsx"),
-        openai_api_key="sk-test",
+        azure_openai_api_key="azure-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
     )
     monkeypatch.setattr("ragas_qa_dataset.cli.load_settings", lambda _: invalid_settings)
 
@@ -58,7 +63,8 @@ def test_generate_command_runs_pipeline_and_exports(monkeypatch, tmp_path: Path,
         file_types=("txt",),
         testset_size=1,
         output_formats=("jsonl", "csv"),
-        openai_api_key="sk-test",
+        azure_openai_api_key="azure-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
     )
 
     monkeypatch.setattr("ragas_qa_dataset.cli.load_settings", lambda _: settings)
@@ -80,7 +86,7 @@ def test_generate_command_runs_pipeline_and_exports(monkeypatch, tmp_path: Path,
                 )
             ],
             distribution_preset="balanced",
-            provider="openai",
+            provider="azure_openai",
             mode="fast",
         ),
     )
