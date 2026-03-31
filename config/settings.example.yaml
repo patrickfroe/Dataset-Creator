@@ -13,8 +13,7 @@ distribution_preset: balanced
 include_metadata: true
 include_source_excerpt: true
 output_formats:
-  - jsonl
-  - csv
+  - xlsx
 random_seed: 42
 azure_openai_api_key: ""
 azure_openai_endpoint: ""

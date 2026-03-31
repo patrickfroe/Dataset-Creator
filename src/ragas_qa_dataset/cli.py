@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from ragas_qa_dataset.config import Settings, SettingsError, load_settings
-from ragas_qa_dataset.exporters import export_csv, export_jsonl
+from ragas_qa_dataset.exporters import export_xlsx
 from ragas_qa_dataset.filters import clean_dataset_records
 from ragas_qa_dataset.generator import GeneratedSample, generate_testset_from_prepared_documents
 from ragas_qa_dataset.loaders import load_local_documents
 from ragas_qa_dataset.preprocess import preprocess_documents
 
 SUPPORTED_FILE_TYPES = {"pdf", "docx", "md", "txt"}
-SUPPORTED_OUTPUT_FORMATS = {"jsonl", "csv"}
+SUPPORTED_OUTPUT_FORMATS = {"xlsx"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -132,13 +132,11 @@ def run_generate(args: argparse.Namespace) -> int:
     output_dir: Path = args.output_dir
     exports: list[Path] = []
     formats = {fmt.lower() for fmt in settings.output_formats if fmt.lower() in SUPPORTED_OUTPUT_FORMATS}
-    if "jsonl" in formats:
-        exports.append(export_jsonl(cleaned, output_dir / "qa_dataset.jsonl"))
-    if "csv" in formats:
-        exports.append(export_csv(cleaned, output_dir / "qa_dataset.csv"))
+    if "xlsx" in formats:
+        exports.append(export_xlsx(cleaned, output_dir / "qa_dataset.xlsx"))
 
     if not exports:
-        print("⚠️ Keine unterstützten Ausgabeformate konfiguriert (jsonl/csv).")
+        print("⚠️ Keine unterstützten Ausgabeformate konfiguriert (xlsx).")
         return 1
 
     print("[generate] Export abgeschlossen:")

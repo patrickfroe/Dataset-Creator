@@ -7,13 +7,22 @@ def test_normalize_text_compacts_whitespace() -> None:
 
 
 def test_chunk_text_creates_multiple_chunks() -> None:
-    chunks = chunk_text("abcdefghij", chunk_size=4, chunk_overlap=0)
-    assert chunks == [(0, "abcd"), (1, "efgh"), (2, "ij")]
+    chunks = chunk_text("eins zwei drei vier", chunk_size=10, chunk_overlap=0)
+    assert chunks == [(0, "eins zwei"), (1, "drei vier")]
 
 
 def test_chunk_text_applies_overlap() -> None:
-    chunks = chunk_text("abcdefghij", chunk_size=4, chunk_overlap=1)
-    assert chunks == [(0, "abcd"), (1, "defg"), (2, "ghij")]
+    chunks = chunk_text("eins zwei drei vier", chunk_size=9, chunk_overlap=3)
+    assert chunks[0] == (0, "eins zwei")
+    assert chunks[1][1].startswith("zwei")
+
+
+def test_chunk_text_does_not_split_words_at_boundaries() -> None:
+    text = "alpha beta gamma delta epsilon"
+    chunks = chunk_text(text, chunk_size=12, chunk_overlap=4)
+    assert all("-" not in chunk for _, chunk in chunks)
+    assert chunks[0][1].endswith("beta")
+    assert chunks[1][1].startswith("beta")
 
 
 def test_preprocess_documents_skips_empty_contents() -> None:

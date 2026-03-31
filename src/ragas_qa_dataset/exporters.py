@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-import csv
-import json
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-OUTPUT_SCHEMA: tuple[str, ...] = (
-    "question",
-    "answer",
-    "source_doc",
-    "chunk_id",
-    "question_type",
-    "difficulty",
-    "language",
-    "source_excerpt",
-)
+OUTPUT_SCHEMA: tuple[str, ...] = ("id", "question", "answer")
 
 
 def _timestamp(now: datetime | None = None) -> str:
@@ -68,19 +57,27 @@ def _item_to_payload(item: Any) -> dict[str, Any]:
     return payload
 
 
-def export_jsonl(items: list[Any], output_path: Path, timestamp: str | None = None) -> Path:
-    output_file = _resolve_output_path(output_path=output_path, suffix="jsonl", timestamp=timestamp)
-    with output_file.open("w", encoding="utf-8") as file:
-        for item in items:
-            file.write(json.dumps(_item_to_payload(item), ensure_ascii=False) + "\n")
-    return output_file
+def _row_id(index: int) -> str:
+    return f"{index:03d}"
 
 
-def export_csv(items: list[Any], output_path: Path, timestamp: str | None = None) -> Path:
-    output_file = _resolve_output_path(output_path=output_path, suffix="csv", timestamp=timestamp)
-    with output_file.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=list(OUTPUT_SCHEMA))
-        writer.writeheader()
-        for item in items:
-            writer.writerow(_item_to_payload(item))
+def export_xlsx(items: list[Any], output_path: Path, timestamp: str | None = None) -> Path:
+    try:
+        from openpyxl import Workbook
+    except ImportError as exc:  # pragma: no cover - optional runtime dependency
+        raise RuntimeError(
+            "Missing dependency 'openpyxl'. Install it to enable Excel export."
+        ) from exc
+
+    output_file = _resolve_output_path(output_path=output_path, suffix="xlsx", timestamp=timestamp)
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "qa_dataset"
+    worksheet.append(list(OUTPUT_SCHEMA))
+
+    for index, item in enumerate(items, start=1):
+        payload = _item_to_payload(item)
+        worksheet.append([_row_id(index), payload["question"], payload["answer"]])
+
+    workbook.save(output_file)
     return output_file
