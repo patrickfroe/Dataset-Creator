@@ -318,11 +318,11 @@ def generate_testset_from_prepared_documents(
     - controlled: builds/loads a Ragas-oriented KnowledgeGraph, applies default_transforms,
       then generates from graph nodes.
     """
-    provider_bundle = initialize_openai_provider(api_key=openai_api_key)
     mode_normalized = mode.strip().lower()
     graph_file = Path(graph_path) if graph_path is not None else None
 
     if mode_normalized == "fast":
+        provider_name = "openai"
         samples = _generate_mvp_samples(
             chunks=chunks,
             testset_size=testset_size,
@@ -330,6 +330,8 @@ def generate_testset_from_prepared_documents(
             language=language,
         )
     elif mode_normalized == "controlled":
+        provider_bundle = initialize_openai_provider(api_key=openai_api_key)
+        provider_name = provider_bundle.provider
         samples = _generate_controlled_samples(
             chunks=chunks,
             testset_size=testset_size,
@@ -346,7 +348,7 @@ def generate_testset_from_prepared_documents(
     return GeneratedTestset(
         samples=samples,
         distribution_preset=distribution_preset,
-        provider=provider_bundle.provider,
+        provider=provider_name,
         mode=mode_normalized,
     )
 
