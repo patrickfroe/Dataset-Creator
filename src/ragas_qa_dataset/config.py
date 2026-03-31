@@ -100,6 +100,14 @@ def _coerce_bool(value: Any, field_name: str) -> bool:
     raise SettingsError(f"Field '{field_name}' must be a boolean.")
 
 
+def _coerce_int(value: Any, field_name: str) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and (value.isdigit() or (value.startswith("-") and value[1:].isdigit())):
+        return int(value)
+    raise SettingsError(f"Field '{field_name}' must be an integer.")
+
+
 def _to_payload(path: str | Path | None) -> dict[str, Any]:
     if path is None:
         return {}
@@ -122,13 +130,13 @@ def load_settings(path: str | Path | None = None) -> Settings:
 
     language = str(os.getenv("RAGAS_LANGUAGE", payload.get("language", "de"))).strip()
     max_docs = _coerce_optional_int(os.getenv("RAGAS_MAX_DOCS", payload.get("max_docs")), "max_docs")
-    chunk_size = int(os.getenv("RAGAS_CHUNK_SIZE", payload.get("chunk_size", 800)))
-    chunk_overlap = int(os.getenv("RAGAS_CHUNK_OVERLAP", payload.get("chunk_overlap", 120)))
-    testset_size = int(os.getenv("RAGAS_TESTSET_SIZE", payload.get("testset_size", 50)))
+    chunk_size = _coerce_int(os.getenv("RAGAS_CHUNK_SIZE", payload.get("chunk_size", 800)), "chunk_size")
+    chunk_overlap = _coerce_int(os.getenv("RAGAS_CHUNK_OVERLAP", payload.get("chunk_overlap", 120)), "chunk_overlap")
+    testset_size = _coerce_int(os.getenv("RAGAS_TESTSET_SIZE", payload.get("testset_size", 50)), "testset_size")
     distribution_preset = str(os.getenv("RAGAS_DISTRIBUTION_PRESET", payload.get("distribution_preset", "balanced"))).strip()
     include_metadata = _coerce_bool(os.getenv("RAGAS_INCLUDE_METADATA", payload.get("include_metadata", True)), "include_metadata")
     include_source_excerpt = _coerce_bool(os.getenv("RAGAS_INCLUDE_SOURCE_EXCERPT", payload.get("include_source_excerpt", True)), "include_source_excerpt")
-    random_seed = int(os.getenv("RAGAS_RANDOM_SEED", payload.get("random_seed", 42)))
+    random_seed = _coerce_int(os.getenv("RAGAS_RANDOM_SEED", payload.get("random_seed", 42)), "random_seed")
 
     if chunk_size <= 0:
         raise SettingsError("Field 'chunk_size' must be > 0.")

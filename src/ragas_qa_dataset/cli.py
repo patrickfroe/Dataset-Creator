@@ -14,6 +14,7 @@ from ragas_qa_dataset.loaders import load_local_documents
 from ragas_qa_dataset.preprocess import preprocess_documents
 
 SUPPORTED_FILE_TYPES = {"pdf", "docx", "md", "txt"}
+SUPPORTED_OUTPUT_FORMATS = {"jsonl", "csv"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,8 +72,9 @@ def _validate_settings(settings: Settings) -> list[str]:
     if invalid_types:
         errors.append(f"Unsupported file types configured: {', '.join(invalid_types)}")
 
-    if not settings.openai_api_key.strip():
-        errors.append("OPENAI_API_KEY is missing.")
+    invalid_formats = [fmt for fmt in settings.output_formats if fmt.lower() not in SUPPORTED_OUTPUT_FORMATS]
+    if invalid_formats:
+        errors.append(f"Unsupported output formats configured: {', '.join(invalid_formats)}")
 
     return errors
 
@@ -125,7 +127,7 @@ def run_generate(args: argparse.Namespace) -> int:
 
     output_dir: Path = args.output_dir
     exports: list[Path] = []
-    formats = {fmt.lower() for fmt in settings.output_formats}
+    formats = {fmt.lower() for fmt in settings.output_formats if fmt.lower() in SUPPORTED_OUTPUT_FORMATS}
     if "jsonl" in formats:
         exports.append(export_jsonl(cleaned, output_dir / "qa_dataset.jsonl"))
     if "csv" in formats:

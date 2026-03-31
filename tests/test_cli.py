@@ -36,6 +36,22 @@ def test_validate_command_detects_invalid_file_types(monkeypatch, capsys, tmp_pa
     assert "Unsupported file types configured" in out
 
 
+def test_validate_command_detects_invalid_output_formats(monkeypatch, capsys, tmp_path: Path) -> None:
+    invalid_settings = Settings(
+        input_dir=tmp_path,
+        file_types=("txt",),
+        output_formats=("jsonl", "xlsx"),
+        openai_api_key="sk-test",
+    )
+    monkeypatch.setattr("ragas_qa_dataset.cli.load_settings", lambda _: invalid_settings)
+
+    exit_code = main(["validate"])
+
+    out = capsys.readouterr().out
+    assert exit_code == 1
+    assert "Unsupported output formats configured" in out
+
+
 def test_generate_command_runs_pipeline_and_exports(monkeypatch, tmp_path: Path, capsys) -> None:
     settings = Settings(
         input_dir=tmp_path,

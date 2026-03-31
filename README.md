@@ -44,16 +44,7 @@ uv sync --group dev
 
 Das Projekt bricht bewusst früh ab, wenn kein API-Key gesetzt ist.
 
-### Variante A (empfohlen): über `.env`
-```bash
-cp .env.example .env
-```
-Danach in `.env` setzen:
-```dotenv
-OPENAI_API_KEY=sk-...
-```
-
-### Variante B: direkt pro Aufruf
+Empfohlen direkt pro Aufruf:
 ```bash
 OPENAI_API_KEY=sk-... uv run ragas-qa-dataset show-config --config config/settings.yaml
 ```
