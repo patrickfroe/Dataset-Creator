@@ -82,6 +82,7 @@ Hinweise:
 ## CLI-Beispiele
 
 > Alle Befehle nutzen den Script-Entry-Point `ragas-qa-dataset`.
+> Alternativ funktioniert auch `uv run python -m ragas_qa_dataset`.
 
 ### 1) Konfiguration anzeigen
 ```bash
