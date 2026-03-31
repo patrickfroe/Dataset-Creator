@@ -122,3 +122,32 @@ def test_generate_testset_rejects_unknown_mode(monkeypatch: pytest.MonkeyPatch) 
             openai_api_key="sk-test",
             mode="invalid",
         )
+
+
+def test_generate_testset_fast_mode_does_not_initialize_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom(api_key: str) -> ProviderBundle:
+        raise AssertionError("Provider should not be initialized in fast mode")
+
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _boom)
+
+    chunks = [
+        ProcessedChunk(
+            chunk_id="doc1:0",
+            text="Fast mode should run without provider initialization.",
+            source_doc="doc1.md",
+            file_path="/tmp/doc1.md",
+            file_type="md",
+        )
+    ]
+
+    generated = generate_testset_from_prepared_documents(
+        chunks=chunks,
+        testset_size=1,
+        distribution_preset="simple",
+        language="de",
+        openai_api_key="sk-test",
+        mode="fast",
+    )
+
+    assert generated.provider == "openai"
+    assert len(generated.samples) == 1
