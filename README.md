@@ -35,9 +35,19 @@ Typischer Ablauf:
 uv sync
 ```
 
+Alternativ mit `pip`:
+```bash
+pip install -r requirements.txt
+```
+
 ### 3) Optional: Dev-Tools installieren (Tests/Lint)
 ```bash
 uv sync --group dev
+```
+
+Alternativ mit `pip`:
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ## Azure OpenAI konfigurieren (ENV)
