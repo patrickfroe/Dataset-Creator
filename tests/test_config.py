@@ -6,7 +6,8 @@ from ragas_qa_dataset.config import SettingsError, load_settings
 
 
 def test_load_settings_uses_yaml_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com/")
     config_file = tmp_path / "settings.yaml"
     config_file.write_text(
         "\n".join(
@@ -44,38 +45,63 @@ def test_load_settings_uses_yaml_values(tmp_path: Path, monkeypatch: pytest.Monk
     assert settings.include_source_excerpt is True
     assert settings.output_formats == ("jsonl",)
     assert settings.random_seed == 7
-    assert settings.openai_api_key == "sk-test"
+    assert settings.azure_openai_api_key == "azure-key"
+    assert settings.azure_openai_endpoint == "https://example.openai.azure.com/"
 
 
 def test_load_settings_env_overrides_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_file = tmp_path / "settings.yaml"
-    config_file.write_text("chunk_size: 200\nopenai_api_key: yaml-key\n", encoding="utf-8")
+    config_file.write_text(
+        "\n".join(
+            [
+                "chunk_size: 200",
+                "azure_openai_api_key: yaml-key",
+                "azure_openai_endpoint: https://yaml.openai.azure.com/",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
-    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "env-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://env.openai.azure.com/")
     monkeypatch.setenv("RAGAS_CHUNK_SIZE", "512")
     monkeypatch.setenv("RAGAS_FILE_TYPES", "pdf,md")
 
     settings = load_settings(config_file)
 
-    assert settings.openai_api_key == "env-key"
+    assert settings.azure_openai_api_key == "env-key"
+    assert settings.azure_openai_endpoint == "https://env.openai.azure.com/"
     assert settings.chunk_size == 512
     assert settings.file_types == ("pdf", "md")
 
 
-def test_load_settings_raises_when_openai_key_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_settings_raises_when_azure_key_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_file = tmp_path / "settings.yaml"
+    config_file.write_text("language: de\nazure_openai_endpoint: https://example.openai.azure.com/\n", encoding="utf-8")
+
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+
+    with pytest.raises(SettingsError, match="AZURE_OPENAI_API_KEY fehlt"):
+        load_settings(config_file)
+
+
+def test_load_settings_raises_when_azure_endpoint_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_file = tmp_path / "settings.yaml"
     config_file.write_text("language: de\n", encoding="utf-8")
 
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
 
-    with pytest.raises(SettingsError, match="OPENAI_API_KEY fehlt"):
+    with pytest.raises(SettingsError, match="AZURE_OPENAI_ENDPOINT fehlt"):
         load_settings(config_file)
 
 
 def test_load_settings_raises_with_clear_error_for_invalid_int(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com/")
     config_file = tmp_path / "settings.yaml"
     config_file.write_text("chunk_size: abc\n", encoding="utf-8")
 

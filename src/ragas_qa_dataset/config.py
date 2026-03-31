@@ -24,7 +24,11 @@ class Settings:
     include_source_excerpt: bool = True
     output_formats: tuple[str, ...] = ("jsonl",)
     random_seed: int = 42
-    openai_api_key: str = ""
+    azure_openai_api_key: str = ""
+    azure_openai_endpoint: str = ""
+    azure_openai_api_version: str = "2024-10-21"
+    azure_openai_chat_deployment: str = "gpt-4o-mini"
+    azure_openai_embedding_deployment: str = "text-embedding-3-small"
 
 
 def _parse_scalar(raw: str) -> Any:
@@ -117,11 +121,21 @@ def _to_payload(path: str | Path | None) -> dict[str, Any]:
 def load_settings(path: str | Path | None = None) -> Settings:
     payload = _to_payload(path)
 
-    raw_openai_api_key = os.getenv("OPENAI_API_KEY", str(payload.get("openai_api_key", ""))).strip()
-    if not raw_openai_api_key:
+    raw_azure_openai_api_key = os.getenv(
+        "AZURE_OPENAI_API_KEY", str(payload.get("azure_openai_api_key", ""))
+    ).strip()
+    if not raw_azure_openai_api_key:
         raise SettingsError(
-            "OPENAI_API_KEY fehlt. Bitte setze die Umgebungsvariable OPENAI_API_KEY "
-            "oder den Wert 'openai_api_key' in der YAML-Konfiguration."
+            "AZURE_OPENAI_API_KEY fehlt. Bitte setze die Umgebungsvariable "
+            "AZURE_OPENAI_API_KEY oder den Wert 'azure_openai_api_key' in der YAML-Konfiguration."
+        )
+    raw_azure_openai_endpoint = os.getenv(
+        "AZURE_OPENAI_ENDPOINT", str(payload.get("azure_openai_endpoint", ""))
+    ).strip()
+    if not raw_azure_openai_endpoint:
+        raise SettingsError(
+            "AZURE_OPENAI_ENDPOINT fehlt. Bitte setze die Umgebungsvariable "
+            "AZURE_OPENAI_ENDPOINT oder den Wert 'azure_openai_endpoint' in der YAML-Konfiguration."
         )
 
     input_dir = Path(str(os.getenv("RAGAS_INPUT_DIR", payload.get("input_dir", "data/raw"))))
@@ -137,6 +151,21 @@ def load_settings(path: str | Path | None = None) -> Settings:
     include_metadata = _coerce_bool(os.getenv("RAGAS_INCLUDE_METADATA", payload.get("include_metadata", True)), "include_metadata")
     include_source_excerpt = _coerce_bool(os.getenv("RAGAS_INCLUDE_SOURCE_EXCERPT", payload.get("include_source_excerpt", True)), "include_source_excerpt")
     random_seed = _coerce_int(os.getenv("RAGAS_RANDOM_SEED", payload.get("random_seed", 42)), "random_seed")
+    azure_openai_api_version = str(
+        os.getenv("AZURE_OPENAI_API_VERSION", payload.get("azure_openai_api_version", "2024-10-21"))
+    ).strip()
+    azure_openai_chat_deployment = str(
+        os.getenv(
+            "AZURE_OPENAI_CHAT_DEPLOYMENT",
+            payload.get("azure_openai_chat_deployment", "gpt-4o-mini"),
+        )
+    ).strip()
+    azure_openai_embedding_deployment = str(
+        os.getenv(
+            "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+            payload.get("azure_openai_embedding_deployment", "text-embedding-3-small"),
+        )
+    ).strip()
 
     if chunk_size <= 0:
         raise SettingsError("Field 'chunk_size' must be > 0.")
@@ -146,6 +175,10 @@ def load_settings(path: str | Path | None = None) -> Settings:
         raise SettingsError("Field 'chunk_overlap' must be smaller than 'chunk_size'.")
     if testset_size <= 0:
         raise SettingsError("Field 'testset_size' must be > 0.")
+    if not azure_openai_chat_deployment:
+        raise SettingsError("AZURE_OPENAI_CHAT_DEPLOYMENT darf nicht leer sein.")
+    if not azure_openai_embedding_deployment:
+        raise SettingsError("AZURE_OPENAI_EMBEDDING_DEPLOYMENT darf nicht leer sein.")
 
     return Settings(
         input_dir=input_dir,
@@ -160,5 +193,9 @@ def load_settings(path: str | Path | None = None) -> Settings:
         include_source_excerpt=include_source_excerpt,
         output_formats=output_formats,
         random_seed=random_seed,
-        openai_api_key=raw_openai_api_key,
+        azure_openai_api_key=raw_azure_openai_api_key,
+        azure_openai_endpoint=raw_azure_openai_endpoint,
+        azure_openai_api_version=azure_openai_api_version,
+        azure_openai_chat_deployment=azure_openai_chat_deployment,
+        azure_openai_embedding_deployment=azure_openai_embedding_deployment,
     )

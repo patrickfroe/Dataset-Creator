@@ -108,7 +108,11 @@ def run_generate(args: argparse.Namespace) -> int:
         testset_size=settings.testset_size,
         distribution_preset=settings.distribution_preset,
         language=settings.language,
-        openai_api_key=settings.openai_api_key,
+        azure_openai_api_key=settings.azure_openai_api_key,
+        azure_openai_endpoint=settings.azure_openai_endpoint,
+        azure_openai_api_version=settings.azure_openai_api_version,
+        azure_openai_chat_deployment=settings.azure_openai_chat_deployment,
+        azure_openai_embedding_deployment=settings.azure_openai_embedding_deployment,
         mode=args.mode,
         graph_path=args.graph_path,
         load_graph=args.load_graph,
@@ -161,7 +165,8 @@ def run_validate(args: argparse.Namespace) -> int:
     print("✅ Validierung erfolgreich.")
     print(f"  input_dir: {settings.input_dir}")
     print(f"  file_types: {', '.join(settings.file_types)}")
-    print("  OPENAI_API_KEY: gesetzt")
+    print("  AZURE_OPENAI_API_KEY: gesetzt")
+    print(f"  AZURE_OPENAI_ENDPOINT: {settings.azure_openai_endpoint}")
     return 0
 
 
