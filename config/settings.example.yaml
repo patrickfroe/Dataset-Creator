@@ -1,0 +1,19 @@
+input_dir: data/raw
+file_types:
+  - pdf
+  - docx
+  - md
+  - txt
+language: de
+max_docs: null
+chunk_size: 800
+chunk_overlap: 120
+testset_size: 50
+distribution_preset: balanced
+include_metadata: true
+include_source_excerpt: true
+output_formats:
+  - jsonl
+  - csv
+random_seed: 42
+openai_api_key: ""
