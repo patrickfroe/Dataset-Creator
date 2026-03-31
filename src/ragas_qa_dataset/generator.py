@@ -57,25 +57,40 @@ class ControlledGraphData:
 GenerationMode = Literal["fast", "controlled"]
 
 
-def initialize_openai_provider(
+def initialize_azure_openai_provider(
     api_key: str,
-    model: str = "gpt-4o-mini",
-    embedding_model: str = "text-embedding-3-small",
+    endpoint: str,
+    api_version: str,
+    chat_deployment: str,
+    embedding_deployment: str,
 ) -> ProviderBundle:
-    """Initialize LLM + embeddings for the OpenAI-based MVP path."""
+    """Initialize LLM + embeddings for the Azure OpenAI provider path."""
     if not api_key.strip():
-        raise GenerationError("OPENAI_API_KEY is required for generation.")
+        raise GenerationError("AZURE_OPENAI_API_KEY is required for generation.")
+    if not endpoint.strip():
+        raise GenerationError("AZURE_OPENAI_ENDPOINT is required for generation.")
 
     try:
-        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+        from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
     except ImportError as exc:  # pragma: no cover - optional runtime dependency
         raise GenerationError(
-            "Missing dependency 'langchain-openai'. Install it to use OpenAI generation."
+            "Missing dependency 'langchain-openai'. Install it to use Azure OpenAI generation."
         ) from exc
 
-    llm = ChatOpenAI(model=model, api_key=api_key, temperature=0)
-    embeddings = OpenAIEmbeddings(model=embedding_model, api_key=api_key)
-    return ProviderBundle(provider="openai", llm=llm, embeddings=embeddings)
+    llm = AzureChatOpenAI(
+        azure_deployment=chat_deployment,
+        api_key=api_key,
+        azure_endpoint=endpoint,
+        api_version=api_version,
+        temperature=0,
+    )
+    embeddings = AzureOpenAIEmbeddings(
+        azure_deployment=embedding_deployment,
+        api_key=api_key,
+        azure_endpoint=endpoint,
+        api_version=api_version,
+    )
+    return ProviderBundle(provider="azure_openai", llm=llm, embeddings=embeddings)
 
 
 def _distribution_for_preset(name: str) -> list[tuple[str, str]]:
@@ -306,7 +321,11 @@ def generate_testset_from_prepared_documents(
     testset_size: int,
     distribution_preset: str,
     language: str,
-    openai_api_key: str,
+    azure_openai_api_key: str,
+    azure_openai_endpoint: str,
+    azure_openai_api_version: str,
+    azure_openai_chat_deployment: str,
+    azure_openai_embedding_deployment: str,
     mode: GenerationMode = "fast",
     graph_path: str | Path | None = None,
     load_graph: bool = False,
@@ -322,7 +341,7 @@ def generate_testset_from_prepared_documents(
     graph_file = Path(graph_path) if graph_path is not None else None
 
     if mode_normalized == "fast":
-        provider_name = "openai"
+        provider_name = "azure_openai"
         samples = _generate_mvp_samples(
             chunks=chunks,
             testset_size=testset_size,
@@ -330,7 +349,13 @@ def generate_testset_from_prepared_documents(
             language=language,
         )
     elif mode_normalized == "controlled":
-        provider_bundle = initialize_openai_provider(api_key=openai_api_key)
+        provider_bundle = initialize_azure_openai_provider(
+            api_key=azure_openai_api_key,
+            endpoint=azure_openai_endpoint,
+            api_version=azure_openai_api_version,
+            chat_deployment=azure_openai_chat_deployment,
+            embedding_deployment=azure_openai_embedding_deployment,
+        )
         provider_name = provider_bundle.provider
         samples = _generate_controlled_samples(
             chunks=chunks,
