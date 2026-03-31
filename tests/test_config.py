@@ -70,3 +70,14 @@ def test_load_settings_raises_when_openai_key_missing(tmp_path: Path, monkeypatc
 
     with pytest.raises(SettingsError, match="OPENAI_API_KEY fehlt"):
         load_settings(config_file)
+
+
+def test_load_settings_raises_with_clear_error_for_invalid_int(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    config_file = tmp_path / "settings.yaml"
+    config_file.write_text("chunk_size: abc\n", encoding="utf-8")
+
+    with pytest.raises(SettingsError, match="chunk_size"):
+        load_settings(config_file)
