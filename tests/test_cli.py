@@ -44,7 +44,7 @@ def test_validate_command_detects_invalid_output_formats(monkeypatch, capsys, tm
     invalid_settings = Settings(
         input_dir=tmp_path,
         file_types=("txt",),
-        output_formats=("jsonl", "xlsx"),
+        output_formats=("jsonl",),
         azure_openai_api_key="azure-key",
         azure_openai_endpoint="https://example.openai.azure.com/",
     )
@@ -62,7 +62,7 @@ def test_generate_command_runs_pipeline_and_exports(monkeypatch, tmp_path: Path,
         input_dir=tmp_path,
         file_types=("txt",),
         testset_size=1,
-        output_formats=("jsonl", "csv"),
+        output_formats=("xlsx",),
         azure_openai_api_key="azure-key",
         azure_openai_endpoint="https://example.openai.azure.com/",
     )
@@ -91,8 +91,7 @@ def test_generate_command_runs_pipeline_and_exports(monkeypatch, tmp_path: Path,
         ),
     )
     monkeypatch.setattr("ragas_qa_dataset.cli.clean_dataset_records", lambda records, **_: records)
-    monkeypatch.setattr("ragas_qa_dataset.cli.export_jsonl", lambda records, path: path)
-    monkeypatch.setattr("ragas_qa_dataset.cli.export_csv", lambda records, path: path)
+    monkeypatch.setattr("ragas_qa_dataset.cli.export_xlsx", lambda records, path: path)
 
     exit_code = main(["generate", "--output-dir", str(tmp_path)])
 

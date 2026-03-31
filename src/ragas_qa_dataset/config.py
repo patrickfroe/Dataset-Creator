@@ -22,7 +22,7 @@ class Settings:
     distribution_preset: str = "balanced"
     include_metadata: bool = True
     include_source_excerpt: bool = True
-    output_formats: tuple[str, ...] = ("jsonl",)
+    output_formats: tuple[str, ...] = ("xlsx",)
     random_seed: int = 42
     azure_openai_api_key: str = ""
     azure_openai_endpoint: str = ""
@@ -140,7 +140,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
 
     input_dir = Path(str(os.getenv("RAGAS_INPUT_DIR", payload.get("input_dir", "data/raw"))))
     file_types = _coerce_tuple_str(os.getenv("RAGAS_FILE_TYPES", payload.get("file_types", ["pdf", "docx", "md", "txt"])), "file_types")
-    output_formats = _coerce_tuple_str(os.getenv("RAGAS_OUTPUT_FORMATS", payload.get("output_formats", ["jsonl"])), "output_formats")
+    output_formats = _coerce_tuple_str(os.getenv("RAGAS_OUTPUT_FORMATS", payload.get("output_formats", ["xlsx"])), "output_formats")
 
     language = str(os.getenv("RAGAS_LANGUAGE", payload.get("language", "de"))).strip()
     max_docs = _coerce_optional_int(os.getenv("RAGAS_MAX_DOCS", payload.get("max_docs")), "max_docs")

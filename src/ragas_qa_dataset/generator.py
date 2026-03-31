@@ -129,6 +129,7 @@ def _generate_samples_from_texts(
     testset_size: int,
     distribution_preset: str,
     language: str,
+    llm: Any,
 ) -> list[GeneratedSample]:
     if testset_size <= 0:
         raise GenerationError("testset_size must be > 0.")
@@ -143,10 +144,18 @@ def _generate_samples_from_texts(
     for index in range(testset_size):
         chunk_id, source_doc, text = texts[index % len(texts)]
         question_type, difficulty = next(profile_cycle)
+        qa = _generate_qa_with_llm(
+            llm=llm,
+            chunk_text=text,
+            language=language,
+            question_type=question_type,
+            difficulty=difficulty,
+            sample_number=index + 1,
+        )
         samples.append(
             GeneratedSample(
-                question=_question_from_chunk(text, question_type, index),
-                answer=_answer_from_chunk(text),
+                question=qa["question"],
+                answer=qa["answer"],
                 source_doc=source_doc,
                 chunk_id=chunk_id,
                 question_type=question_type,
@@ -164,6 +173,7 @@ def _generate_mvp_samples(
     testset_size: int,
     distribution_preset: str,
     language: str,
+    llm: Any,
 ) -> list[GeneratedSample]:
     texts = [(chunk.chunk_id, chunk.source_doc, chunk.text) for chunk in chunks]
     return _generate_samples_from_texts(
@@ -171,6 +181,7 @@ def _generate_mvp_samples(
         testset_size=testset_size,
         distribution_preset=distribution_preset,
         language=language,
+        llm=llm,
     )
 
 
@@ -313,7 +324,54 @@ def _generate_controlled_samples(
         testset_size=testset_size,
         distribution_preset=distribution_preset,
         language=language,
+        llm=provider_bundle.llm,
     )
+
+
+def _extract_response_text(response: Any) -> str:
+    if isinstance(response, str):
+        return response
+    content = getattr(response, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [str(part.get("text", "")) for part in content if isinstance(part, dict)]
+        return " ".join(part.strip() for part in parts if part.strip())
+    return str(response)
+
+
+def _generate_qa_with_llm(
+    llm: Any,
+    chunk_text: str,
+    language: str,
+    question_type: str,
+    difficulty: str,
+    sample_number: int,
+) -> dict[str, str]:
+    prompt = (
+        "Erzeuge genau ein Frage/Antwort-Paar aus dem folgenden Dokumentauszug.\n"
+        f"Sprache: {language}\n"
+        f"Fragetyp: {question_type}\n"
+        f"Schwierigkeit: {difficulty}\n"
+        "Antwort nur im JSON-Format mit den Schlüsseln 'question' und 'answer'.\n"
+        "Die Antwort muss im Auszug begründet sein und darf nichts erfinden.\n"
+        f"Auszug:\n{chunk_text}\n"
+        f"Sample-Nummer: {sample_number}"
+    )
+    response_text = _extract_response_text(llm.invoke(prompt)).strip()
+    if response_text.startswith("```"):
+        response_text = response_text.strip("`")
+        response_text = response_text.replace("json\n", "", 1).strip()
+    try:
+        payload = json.loads(response_text)
+    except json.JSONDecodeError as exc:
+        raise GenerationError("LLM response is not valid JSON for QA generation.") from exc
+
+    question = str(payload.get("question", "")).strip()
+    answer = str(payload.get("answer", "")).strip()
+    if not question or not answer:
+        raise GenerationError("LLM response must contain non-empty 'question' and 'answer'.")
+    return {"question": question, "answer": answer}
 
 
 def generate_testset_from_prepared_documents(
@@ -339,23 +397,24 @@ def generate_testset_from_prepared_documents(
     """
     mode_normalized = mode.strip().lower()
     graph_file = Path(graph_path) if graph_path is not None else None
+    provider_bundle = initialize_azure_openai_provider(
+        api_key=azure_openai_api_key,
+        endpoint=azure_openai_endpoint,
+        api_version=azure_openai_api_version,
+        chat_deployment=azure_openai_chat_deployment,
+        embedding_deployment=azure_openai_embedding_deployment,
+    )
 
     if mode_normalized == "fast":
-        provider_name = "azure_openai"
+        provider_name = provider_bundle.provider
         samples = _generate_mvp_samples(
             chunks=chunks,
             testset_size=testset_size,
             distribution_preset=distribution_preset,
             language=language,
+            llm=provider_bundle.llm,
         )
     elif mode_normalized == "controlled":
-        provider_bundle = initialize_azure_openai_provider(
-            api_key=azure_openai_api_key,
-            endpoint=azure_openai_endpoint,
-            api_version=azure_openai_api_version,
-            chat_deployment=azure_openai_chat_deployment,
-            embedding_deployment=azure_openai_embedding_deployment,
-        )
         provider_name = provider_bundle.provider
         samples = _generate_controlled_samples(
             chunks=chunks,

@@ -32,17 +32,42 @@ def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[tuple[int
         return [(0, text)]
 
     chunks: list[tuple[int, str]] = []
-    step = chunk_size - chunk_overlap
     index = 0
-    for start in range(0, len(text), step):
-        end = start + chunk_size
+    start = 0
+    while start < len(text):
+        end = _find_chunk_end(text=text, start=start, chunk_size=chunk_size)
         chunk = text[start:end].strip()
         if chunk:
             chunks.append((index, chunk))
             index += 1
         if end >= len(text):
             break
+        next_start = max(0, end - chunk_overlap)
+        next_start = _align_start_to_word(text=text, position=next_start)
+        if next_start <= start:
+            next_start = end
+        start = next_start
+
     return chunks
+
+
+def _find_chunk_end(text: str, start: int, chunk_size: int) -> int:
+    ideal_end = min(start + chunk_size, len(text))
+    if ideal_end == len(text):
+        return ideal_end
+
+    boundary = text.rfind(" ", start + 1, ideal_end + 1)
+    if boundary == -1 or boundary <= start:
+        return ideal_end
+    return boundary
+
+
+def _align_start_to_word(text: str, position: int) -> int:
+    if position <= 0 or position >= len(text):
+        return max(0, min(position, len(text)))
+    while position > 0 and text[position - 1] != " " and text[position] != " ":
+        position -= 1
+    return position
 
 
 def preprocess_documents(

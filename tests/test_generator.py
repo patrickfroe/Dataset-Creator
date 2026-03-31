@@ -10,8 +10,17 @@ from ragas_qa_dataset.generator import (
 from ragas_qa_dataset.preprocess import ProcessedChunk
 
 
+class _LLMStub:
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def invoke(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        return '{"question": "Welche Aussage ist korrekt?", "answer": "Die Aussage stammt aus dem Chunk."}'
+
+
 def _provider_stub(*_args: object, **_kwargs: object) -> ProviderBundle:
-    return ProviderBundle(provider="azure_openai", llm=object(), embeddings=object())
+    return ProviderBundle(provider="azure_openai", llm=_LLMStub(), embeddings=object())
 
 
 def test_generate_testset_balanced_preset_fast_mode(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -42,7 +51,7 @@ def test_generate_testset_balanced_preset_fast_mode(monkeypatch: pytest.MonkeyPa
     assert result.provider == "azure_openai"
     assert result.mode == "fast"
     assert len(result.samples) == 3
-    assert {sample.question_type for sample in result.samples} == {"factual", "reasoning"}
+    assert result.samples[0].question == "Welche Aussage ist korrekt?"
 
 
 def test_generate_testset_controlled_mode_with_graph_save_load(
@@ -144,34 +153,36 @@ def test_generate_testset_rejects_unknown_mode(monkeypatch: pytest.MonkeyPatch) 
         )
 
 
-def test_generate_testset_fast_mode_does_not_initialize_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _boom(*_args: object, **_kwargs: object) -> ProviderBundle:
-        raise AssertionError("Provider should not be initialized in fast mode")
+def test_generate_testset_raises_on_invalid_llm_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _BadLLM:
+        def invoke(self, prompt: str) -> str:
+            return "not-json"
 
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _boom)
+    monkeypatch.setattr(
+        "ragas_qa_dataset.generator.initialize_azure_openai_provider",
+        lambda *_args, **_kwargs: ProviderBundle(provider="azure_openai", llm=_BadLLM(), embeddings=object()),
+    )
 
     chunks = [
         ProcessedChunk(
             chunk_id="doc1:0",
-            text="Fast mode should run without provider initialization.",
+            text="Fast mode should run with LLM output.",
             source_doc="doc1.md",
             file_path="/tmp/doc1.md",
             file_type="md",
         )
     ]
 
-    generated = generate_testset_from_prepared_documents(
-        chunks=chunks,
-        testset_size=1,
-        distribution_preset="simple",
-        language="de",
-        azure_openai_api_key="test-key",
-        azure_openai_endpoint="https://example.openai.azure.com/",
-        azure_openai_api_version="2024-10-21",
-        azure_openai_chat_deployment="gpt-4o-mini",
-        azure_openai_embedding_deployment="text-embedding-3-small",
-        mode="fast",
-    )
-
-    assert generated.provider == "azure_openai"
-    assert len(generated.samples) == 1
+    with pytest.raises(GenerationError, match="not valid JSON"):
+        generate_testset_from_prepared_documents(
+            chunks=chunks,
+            testset_size=1,
+            distribution_preset="simple",
+            language="de",
+            azure_openai_api_key="test-key",
+            azure_openai_endpoint="https://example.openai.azure.com/",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-4o-mini",
+            azure_openai_embedding_deployment="text-embedding-3-small",
+            mode="fast",
+        )
