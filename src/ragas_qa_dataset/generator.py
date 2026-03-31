@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from itertools import cycle
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 from ragas_qa_dataset.preprocess import ProcessedChunk
 
@@ -43,6 +45,16 @@ class GeneratedTestset:
     samples: list[GeneratedSample]
     distribution_preset: str
     provider: str
+    mode: str
+
+
+@dataclass(slots=True)
+class ControlledGraphData:
+    nodes: list[dict[str, Any]]
+    relationships: list[dict[str, Any]]
+
+
+GenerationMode = Literal["fast", "controlled"]
 
 
 def initialize_openai_provider(
@@ -97,8 +109,8 @@ def _answer_from_chunk(chunk: str) -> str:
     return chunk[:300].strip()
 
 
-def _generate_mvp_samples(
-    chunks: list[ProcessedChunk],
+def _generate_samples_from_texts(
+    texts: list[tuple[str, str, str]],
     testset_size: int,
     distribution_preset: str,
     language: str,
@@ -107,29 +119,186 @@ def _generate_mvp_samples(
         raise GenerationError("testset_size must be > 0.")
 
     distribution_profile = _distribution_for_preset(distribution_preset)
-    if not chunks:
+    if not texts:
         return []
 
     profile_cycle = cycle(distribution_profile)
     samples: list[GeneratedSample] = []
 
     for index in range(testset_size):
-        chunk = chunks[index % len(chunks)]
+        chunk_id, source_doc, text = texts[index % len(texts)]
         question_type, difficulty = next(profile_cycle)
         samples.append(
             GeneratedSample(
-                question=_question_from_chunk(chunk.text, question_type, index),
-                answer=_answer_from_chunk(chunk.text),
-                source_doc=chunk.source_doc,
-                chunk_id=chunk.chunk_id,
+                question=_question_from_chunk(text, question_type, index),
+                answer=_answer_from_chunk(text),
+                source_doc=source_doc,
+                chunk_id=chunk_id,
                 question_type=question_type,
                 difficulty=difficulty,
                 language=language,
-                context=chunk.text,
+                context=text,
             )
         )
 
     return samples
+
+
+def _generate_mvp_samples(
+    chunks: list[ProcessedChunk],
+    testset_size: int,
+    distribution_preset: str,
+    language: str,
+) -> list[GeneratedSample]:
+    texts = [(chunk.chunk_id, chunk.source_doc, chunk.text) for chunk in chunks]
+    return _generate_samples_from_texts(
+        texts=texts,
+        testset_size=testset_size,
+        distribution_preset=distribution_preset,
+        language=language,
+    )
+
+
+def _chunks_to_graph_data(chunks: list[ProcessedChunk]) -> ControlledGraphData:
+    nodes: list[dict[str, Any]] = []
+    relationships: list[dict[str, Any]] = []
+
+    for index, chunk in enumerate(chunks):
+        nodes.append(
+            {
+                "id": chunk.chunk_id,
+                "type": "DOCUMENT",
+                "properties": {
+                    "page_content": chunk.text,
+                    "source_doc": chunk.source_doc,
+                    "chunk_id": chunk.chunk_id,
+                    "file_path": chunk.file_path,
+                    "file_type": chunk.file_type,
+                },
+            }
+        )
+        if index > 0:
+            relationships.append(
+                {
+                    "source": chunks[index - 1].chunk_id,
+                    "target": chunk.chunk_id,
+                    "type": "NEXT_CHUNK",
+                }
+            )
+
+    return ControlledGraphData(nodes=nodes, relationships=relationships)
+
+
+def _apply_ragas_default_transforms(graph_data: ControlledGraphData, provider: ProviderBundle) -> None:
+    """Try applying ragas default_transforms on a KnowledgeGraph; fail with clear message if unavailable."""
+    try:
+        from ragas.testset.graph import KnowledgeGraph, Node, NodeType, Relationship
+        from ragas.testset.transforms import apply_transforms, default_transforms
+    except ImportError as exc:
+        raise GenerationError(
+            "Controlled mode requires 'ragas' with testset graph support. "
+            "Install/upgrade ragas to use KnowledgeGraph transforms."
+        ) from exc
+
+    ragas_nodes = []
+    for node in graph_data.nodes:
+        ragas_nodes.append(
+            Node(
+                type=NodeType[node["type"]],
+                properties=node["properties"],
+            )
+        )
+
+    ragas_relationships = []
+    for rel in graph_data.relationships:
+        source_idx = _node_index_for_id(graph_data.nodes, rel["source"])
+        target_idx = _node_index_for_id(graph_data.nodes, rel["target"])
+        ragas_relationships.append(
+            Relationship(
+                source=ragas_nodes[source_idx],
+                target=ragas_nodes[target_idx],
+                type=rel["type"],
+                properties={},
+            )
+        )
+
+    kg = KnowledgeGraph(nodes=ragas_nodes, relationships=ragas_relationships)
+    transforms = default_transforms(documents=[], llm=provider.llm, embedding_model=provider.embeddings)
+    apply_transforms(kg, transforms)
+
+
+def _node_index_for_id(nodes: list[dict[str, Any]], node_id: str) -> int:
+    for index, node in enumerate(nodes):
+        if node.get("id") == node_id:
+            return index
+    raise GenerationError(f"Unknown graph node id '{node_id}' in relationship.")
+
+
+def _save_graph(graph_data: ControlledGraphData, graph_path: Path) -> None:
+    graph_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"nodes": graph_data.nodes, "relationships": graph_data.relationships}
+    graph_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_graph(graph_path: Path) -> ControlledGraphData:
+    if not graph_path.exists():
+        raise GenerationError(f"Graph file not found: {graph_path}")
+
+    payload = json.loads(graph_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise GenerationError("Invalid graph file: top-level JSON object expected.")
+
+    nodes = payload.get("nodes")
+    relationships = payload.get("relationships", [])
+    if not isinstance(nodes, list) or not isinstance(relationships, list):
+        raise GenerationError("Invalid graph file: 'nodes' and 'relationships' must be lists.")
+
+    return ControlledGraphData(nodes=nodes, relationships=relationships)
+
+
+def _extract_texts_from_graph(graph_data: ControlledGraphData) -> list[tuple[str, str, str]]:
+    texts: list[tuple[str, str, str]] = []
+    for node in graph_data.nodes:
+        properties = node.get("properties", {})
+        if not isinstance(properties, dict):
+            continue
+        chunk_text = str(properties.get("page_content", "")).strip()
+        if not chunk_text:
+            continue
+        chunk_id = str(properties.get("chunk_id", node.get("id", "unknown")))
+        source_doc = str(properties.get("source_doc", "unknown"))
+        texts.append((chunk_id, source_doc, chunk_text))
+    return texts
+
+
+def _generate_controlled_samples(
+    chunks: list[ProcessedChunk],
+    testset_size: int,
+    distribution_preset: str,
+    language: str,
+    provider_bundle: ProviderBundle,
+    graph_path: Path | None,
+    load_graph: bool,
+    save_graph: bool,
+) -> list[GeneratedSample]:
+    if load_graph:
+        if graph_path is None:
+            raise GenerationError("controlled mode: graph_path is required when load_graph=True.")
+        graph_data = _load_graph(graph_path)
+    else:
+        graph_data = _chunks_to_graph_data(chunks)
+        _apply_ragas_default_transforms(graph_data, provider_bundle)
+
+    if save_graph and graph_path is not None:
+        _save_graph(graph_data, graph_path)
+
+    texts = _extract_texts_from_graph(graph_data)
+    return _generate_samples_from_texts(
+        texts=texts,
+        testset_size=testset_size,
+        distribution_preset=distribution_preset,
+        language=language,
+    )
 
 
 def generate_testset_from_prepared_documents(
@@ -138,28 +307,47 @@ def generate_testset_from_prepared_documents(
     distribution_preset: str,
     language: str,
     openai_api_key: str,
+    mode: GenerationMode = "fast",
+    graph_path: str | Path | None = None,
+    load_graph: bool = False,
+    save_graph: bool = False,
 ) -> GeneratedTestset:
     """Generate a testset from preprocessed chunks.
 
-    Fast path first (document/chunk based) for MVP.
-    TODO: Add KnowledgeGraph generation path for richer multi-hop synthesis.
+    - fast: MVP chunk-based generation (stable default)
+    - controlled: builds/loads a Ragas-oriented KnowledgeGraph, applies default_transforms,
+      then generates from graph nodes.
     """
     provider_bundle = initialize_openai_provider(api_key=openai_api_key)
+    mode_normalized = mode.strip().lower()
+    graph_file = Path(graph_path) if graph_path is not None else None
 
-    # MVP: fast document-based path using preprocessed chunks.
-    # The OpenAI provider is initialized and ready; generation is deterministic here
-    # and can later be swapped with direct Ragas synthesizers.
-    samples = _generate_mvp_samples(
-        chunks=chunks,
-        testset_size=testset_size,
-        distribution_preset=distribution_preset,
-        language=language,
-    )
+    if mode_normalized == "fast":
+        samples = _generate_mvp_samples(
+            chunks=chunks,
+            testset_size=testset_size,
+            distribution_preset=distribution_preset,
+            language=language,
+        )
+    elif mode_normalized == "controlled":
+        samples = _generate_controlled_samples(
+            chunks=chunks,
+            testset_size=testset_size,
+            distribution_preset=distribution_preset,
+            language=language,
+            provider_bundle=provider_bundle,
+            graph_path=graph_file,
+            load_graph=load_graph,
+            save_graph=save_graph,
+        )
+    else:
+        raise GenerationError("Unknown mode. Supported values: fast, controlled.")
 
     return GeneratedTestset(
         samples=samples,
         distribution_preset=distribution_preset,
         provider=provider_bundle.provider,
+        mode=mode_normalized,
     )
 
 
