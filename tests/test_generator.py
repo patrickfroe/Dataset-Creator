@@ -10,12 +10,12 @@ from ragas_qa_dataset.generator import (
 from ragas_qa_dataset.preprocess import ProcessedChunk
 
 
-def _provider_stub(api_key: str) -> ProviderBundle:
-    return ProviderBundle(provider="openai", llm=object(), embeddings=object())
+def _provider_stub(*_args: object, **_kwargs: object) -> ProviderBundle:
+    return ProviderBundle(provider="azure_openai", llm=object(), embeddings=object())
 
 
 def test_generate_testset_balanced_preset_fast_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _provider_stub)
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _provider_stub)
 
     chunks = [
         ProcessedChunk(
@@ -32,10 +32,14 @@ def test_generate_testset_balanced_preset_fast_mode(monkeypatch: pytest.MonkeyPa
         testset_size=3,
         distribution_preset="balanced",
         language="de",
-        openai_api_key="sk-test",
+        azure_openai_api_key="test-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
+        azure_openai_api_version="2024-10-21",
+        azure_openai_chat_deployment="gpt-4o-mini",
+        azure_openai_embedding_deployment="text-embedding-3-small",
     )
 
-    assert result.provider == "openai"
+    assert result.provider == "azure_openai"
     assert result.mode == "fast"
     assert len(result.samples) == 3
     assert {sample.question_type for sample in result.samples} == {"factual", "reasoning"}
@@ -44,7 +48,7 @@ def test_generate_testset_balanced_preset_fast_mode(monkeypatch: pytest.MonkeyPa
 def test_generate_testset_controlled_mode_with_graph_save_load(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _provider_stub)
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _provider_stub)
     monkeypatch.setattr(
         "ragas_qa_dataset.generator._apply_ragas_default_transforms",
         lambda graph_data, provider: None,
@@ -73,7 +77,11 @@ def test_generate_testset_controlled_mode_with_graph_save_load(
         testset_size=2,
         distribution_preset="simple",
         language="de",
-        openai_api_key="sk-test",
+        azure_openai_api_key="test-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
+        azure_openai_api_version="2024-10-21",
+        azure_openai_chat_deployment="gpt-4o-mini",
+        azure_openai_embedding_deployment="text-embedding-3-small",
         mode="controlled",
         graph_path=graph_file,
         save_graph=True,
@@ -87,7 +95,11 @@ def test_generate_testset_controlled_mode_with_graph_save_load(
         testset_size=2,
         distribution_preset="simple",
         language="de",
-        openai_api_key="sk-test",
+        azure_openai_api_key="test-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
+        azure_openai_api_version="2024-10-21",
+        azure_openai_chat_deployment="gpt-4o-mini",
+        azure_openai_embedding_deployment="text-embedding-3-small",
         mode="controlled",
         graph_path=graph_file,
         load_graph=True,
@@ -98,7 +110,7 @@ def test_generate_testset_controlled_mode_with_graph_save_load(
 
 
 def test_generate_testset_rejects_unknown_preset(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _provider_stub)
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _provider_stub)
 
     with pytest.raises(GenerationError, match="Unknown distribution_preset"):
         generate_testset_from_prepared_documents(
@@ -106,12 +118,16 @@ def test_generate_testset_rejects_unknown_preset(monkeypatch: pytest.MonkeyPatch
             testset_size=2,
             distribution_preset="unknown",
             language="de",
-            openai_api_key="sk-test",
+            azure_openai_api_key="test-key",
+            azure_openai_endpoint="https://example.openai.azure.com/",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-4o-mini",
+            azure_openai_embedding_deployment="text-embedding-3-small",
         )
 
 
 def test_generate_testset_rejects_unknown_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _provider_stub)
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _provider_stub)
 
     with pytest.raises(GenerationError, match="Unknown mode"):
         generate_testset_from_prepared_documents(
@@ -119,16 +135,20 @@ def test_generate_testset_rejects_unknown_mode(monkeypatch: pytest.MonkeyPatch) 
             testset_size=2,
             distribution_preset="simple",
             language="de",
-            openai_api_key="sk-test",
+            azure_openai_api_key="test-key",
+            azure_openai_endpoint="https://example.openai.azure.com/",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-4o-mini",
+            azure_openai_embedding_deployment="text-embedding-3-small",
             mode="invalid",
         )
 
 
 def test_generate_testset_fast_mode_does_not_initialize_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _boom(api_key: str) -> ProviderBundle:
+    def _boom(*_args: object, **_kwargs: object) -> ProviderBundle:
         raise AssertionError("Provider should not be initialized in fast mode")
 
-    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_openai_provider", _boom)
+    monkeypatch.setattr("ragas_qa_dataset.generator.initialize_azure_openai_provider", _boom)
 
     chunks = [
         ProcessedChunk(
@@ -145,9 +165,13 @@ def test_generate_testset_fast_mode_does_not_initialize_provider(monkeypatch: py
         testset_size=1,
         distribution_preset="simple",
         language="de",
-        openai_api_key="sk-test",
+        azure_openai_api_key="test-key",
+        azure_openai_endpoint="https://example.openai.azure.com/",
+        azure_openai_api_version="2024-10-21",
+        azure_openai_chat_deployment="gpt-4o-mini",
+        azure_openai_embedding_deployment="text-embedding-3-small",
         mode="fast",
     )
 
-    assert generated.provider == "openai"
+    assert generated.provider == "azure_openai"
     assert len(generated.samples) == 1

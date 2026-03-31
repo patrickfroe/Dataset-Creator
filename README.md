@@ -8,7 +8,7 @@ CLI-Tool, das aus lokalen Dokumenten ein synthetisches Frage/Antwort-Dataset erz
 
 Typischer Ablauf:
 1. Dokumente in `data/raw` legen.
-2. Konfiguration laden (`settings.yaml` + `OPENAI_API_KEY`).
+2. Konfiguration laden (`settings.yaml` + Azure-ENV-Variablen).
 3. Chunks erzeugen und Fragen/Antworten generieren.
 4. Datensätze filtern und exportieren.
 
@@ -40,13 +40,22 @@ uv sync
 uv sync --group dev
 ```
 
-## `OPENAI_API_KEY` konfigurieren
+## Azure OpenAI konfigurieren (ENV)
 
-Das Projekt bricht bewusst früh ab, wenn kein API-Key gesetzt ist.
+Das Projekt bricht bewusst früh ab, wenn API-Key oder Endpoint fehlen.
 
 Empfohlen direkt pro Aufruf:
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset show-config --config config/settings.yaml
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset show-config --config config/settings.yaml
+```
+
+Beispiel `.env`:
+```dotenv
+AZURE_OPENAI_API_KEY=your-azure-openai-api-key
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-10-21
+AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o-mini
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 ```
 
 ## Beispiel für `settings.yaml`
@@ -72,11 +81,17 @@ output_formats:
   - jsonl
   - csv
 random_seed: 42
-openai_api_key: ""
+azure_openai_api_key: ""
+azure_openai_endpoint: ""
+azure_openai_api_version: "2024-10-21"
+azure_openai_chat_deployment: "gpt-4o-mini"
+azure_openai_embedding_deployment: "text-embedding-3-small"
 ```
 
 Hinweise:
-- `openai_api_key` kann leer bleiben, wenn `OPENAI_API_KEY` als ENV gesetzt ist.
+- `azure_openai_api_key` und `azure_openai_endpoint` können in YAML leer bleiben, wenn ENV gesetzt ist.
+- `AZURE_OPENAI_CHAT_DEPLOYMENT` steuert das Chat-Modell-Deployment.
+- `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` steuert das Embedding-Deployment.
 - ENV-Variablen (`RAGAS_*`) überschreiben YAML-Werte.
 
 ## CLI-Beispiele
@@ -86,17 +101,17 @@ Hinweise:
 
 ### 1) Konfiguration anzeigen
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset show-config --config config/settings.yaml
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset show-config --config config/settings.yaml
 ```
 
 ### 2) Setup validieren
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset validate --config config/settings.yaml
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset validate --config config/settings.yaml
 ```
 
 ### 3) Dataset generieren (Standard: `fast`)
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset generate \
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset generate \
   --config config/settings.yaml \
   --output-dir data/output \
   --mode fast
@@ -104,7 +119,7 @@ OPENAI_API_KEY=sk-... uv run ragas-qa-dataset generate \
 
 ### 4) Controlled-Modus mit Graph speichern
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset generate \
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset generate \
   --config config/settings.yaml \
   --output-dir data/output \
   --mode controlled \
@@ -114,7 +129,7 @@ OPENAI_API_KEY=sk-... uv run ragas-qa-dataset generate \
 
 ### 5) Controlled-Modus mit vorhandenem Graph laden
 ```bash
-OPENAI_API_KEY=sk-... uv run ragas-qa-dataset generate \
+AZURE_OPENAI_API_KEY=... AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ uv run ragas-qa-dataset generate \
   --config config/settings.yaml \
   --output-dir data/output \
   --mode controlled \
@@ -167,8 +182,8 @@ Beispiel (`jsonl`):
 
 ## Typische Fehlerquellen
 
-- **`OPENAI_API_KEY fehlt`**  
-  Key als ENV setzen oder in `settings.yaml` hinterlegen.
+- **`AZURE_OPENAI_API_KEY fehlt` oder `AZURE_OPENAI_ENDPOINT fehlt`**  
+  Beide Werte als ENV setzen oder in `settings.yaml` hinterlegen.
 
 - **Ungültiger `input_dir`**  
   Prüfen, ob Ordner existiert und Dateien mit erlaubten Endungen enthält.

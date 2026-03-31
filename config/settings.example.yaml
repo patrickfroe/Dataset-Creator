@@ -16,4 +16,8 @@ output_formats:
   - jsonl
   - csv
 random_seed: 42
-openai_api_key: ""
+azure_openai_api_key: ""
+azure_openai_endpoint: ""
+azure_openai_api_version: "2024-10-21"
+azure_openai_chat_deployment: "gpt-4o-mini"
+azure_openai_embedding_deployment: "text-embedding-3-small"
